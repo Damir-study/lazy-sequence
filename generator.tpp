@@ -98,6 +98,9 @@ generator<T>::generator(lazy_sequence<T>* owner, sequence<T>* source, remove_ope
     if (source == nullptr) {
         throw std::invalid_argument("Generator source is null");
     }
+    if (operation_data.count < 0) {
+        throw std::invalid_argument("Remove count cannot be negative");
+    }
 
     source_iterator = source->get_enumerator();
 }
@@ -121,13 +124,13 @@ generator<T>::generator(const generator<T>& other)
     source_iterator = source == nullptr ? nullptr : source->get_enumerator();
     operation_iterator = operation_items == nullptr ? nullptr : operation_items->get_enumerator();
 
-    for (std::size_t i = 0; i < source_index; ++i) {
+    for (int i = 0; i < source_index; ++i) {
         if (source_iterator == nullptr || !source_iterator->move_next()) {
             throw std::out_of_range("IndexOutOfRange");
         }
     }
 
-    for (std::size_t i = 0; i < inserted_count; ++i) {
+    for (int i = 0; i < inserted_count; ++i) {
         if (operation_iterator == nullptr || !operation_iterator->move_next()) {
             throw std::out_of_range("IndexOutOfRange");
         }
@@ -148,7 +151,7 @@ T generator<T>::get_next() {
             throw std::invalid_argument("nullptr owner or rule");
         }
 
-        T item = rule(owner);
+        T item = rule(owner->get_materialized_items());
         current_index += 1;
         return item;
     }
@@ -160,7 +163,7 @@ T generator<T>::get_next() {
     bool should_insert = operation == insert_operation_kind &&
                          current_index >= operation_index &&
                          operation_items != nullptr &&
-                         inserted_count < static_cast<std::size_t>(operation_items->get_length());
+                         inserted_count < operation_items->get_length();
 
     if (should_insert) {
         operation_iterator->move_next();
@@ -174,7 +177,7 @@ T generator<T>::get_next() {
                          remove_count > 0;
 
     if (should_remove) {
-        for (std::size_t i = 0; i < remove_count; ++i) {
+        for (int i = 0; i < remove_count; ++i) {
             source_iterator->move_next();
             ++source_index;
         }
@@ -199,7 +202,7 @@ bool generator<T>::has_next() const {
 
     ordinal length = get_base_ordinal_length();
     if (operation == insert_operation_kind && operation_items != nullptr) {
-        ordinal inserted_length = ordinal::finite(static_cast<std::size_t>(operation_items->get_length()));
+        ordinal inserted_length = ordinal::finite(operation_items->get_length());
         if (length.is_finite() || operation_index >= length ||
             operation_index.get_omega_coefficient() == length.get_omega_coefficient()) {
             length += inserted_length;
@@ -207,14 +210,14 @@ bool generator<T>::has_next() const {
     }
     if (operation == remove_operation_kind && operation_index < length) {
         if (length.is_finite() && operation_index.is_finite()) {
-            std::size_t available = length.get_count() - operation_index.get_count();
-            std::size_t removed = remove_count > available ? available : remove_count;
+            int available = static_cast<int>(length.get_count() - operation_index.get_count());
+            int removed = remove_count > available ? available : remove_count;
             length -= ordinal::finite(removed);
         } else if (length.is_infinite() &&
                    operation_index.is_infinite() &&
                    operation_index.get_omega_coefficient() == length.get_omega_coefficient()) {
-            std::size_t available = length.get_finite_part() - operation_index.get_finite_part();
-            std::size_t removed = remove_count > available ? available : remove_count;
+            int available = static_cast<int>(length.get_finite_part() - operation_index.get_finite_part());
+            int removed = remove_count > available ? available : remove_count;
             length -= removed;
         }
     }
@@ -243,7 +246,10 @@ generator<T>* generator<T>::prepend(const sequence<T>* items) const {
 }
 
 template <typename T>
-generator<T>* generator<T>::insert(const T& item, std::size_t index) const {
+generator<T>* generator<T>::insert(const T& item, int index) const {
+    if (index < 0) {
+        throw std::out_of_range("IndexOutOfRange");
+    }
     return insert(item, ordinal::finite(index));
 }
 
@@ -258,7 +264,10 @@ generator<T>* generator<T>::insert(const T& item, const ordinal& index) const {
 }
 
 template <typename T>
-generator<T>* generator<T>::insert(const sequence<T>* items, std::size_t index) const {
+generator<T>* generator<T>::insert(const sequence<T>* items, int index) const {
+    if (index < 0) {
+        throw std::out_of_range("IndexOutOfRange");
+    }
     return insert(items, ordinal::finite(index));
 }
 
@@ -273,7 +282,10 @@ generator<T>* generator<T>::insert(const sequence<T>* items, const ordinal& inde
 }
 
 template <typename T>
-generator<T>* generator<T>::remove(std::size_t index) const {
+generator<T>* generator<T>::remove(int index) const {
+    if (index < 0) {
+        throw std::out_of_range("IndexOutOfRange");
+    }
     return remove(ordinal::finite(index), 1);
 }
 
@@ -283,12 +295,18 @@ generator<T>* generator<T>::remove(const ordinal& index) const {
 }
 
 template <typename T>
-generator<T>* generator<T>::remove(std::size_t index, std::size_t count) const {
+generator<T>* generator<T>::remove(int index, int count) const {
+    if (index < 0 || count < 0) {
+        throw std::out_of_range("IndexOutOfRange");
+    }
     return remove(ordinal::finite(index), count);
 }
 
 template <typename T>
-generator<T>* generator<T>::remove(const ordinal& index, std::size_t count) const {
+generator<T>* generator<T>::remove(const ordinal& index, int count) const {
+    if (count < 0) {
+        throw std::out_of_range("IndexOutOfRange");
+    }
     sequence<T>* base = get_base_source();
     if (base == nullptr) {
         throw std::logic_error("Generator has no source");
@@ -311,7 +329,7 @@ void generator<T>::set_source(sequence<T>* source) {
 
     if (this->source != nullptr && operation != no_operation_kind) {
         source_iterator = this->source->get_enumerator();
-        for (std::size_t i = 0; i < source_index; ++i) {
+        for (int i = 0; i < source_index; ++i) {
             if (!source_iterator->move_next()) {
                 throw std::out_of_range("IndexOutOfRange");
             }
@@ -328,10 +346,11 @@ void generator<T>::copy_operation_items(const sequence<T>* items) {
         return;
     }
 
+    int count = items->get_length();
     operation_items = new mutable_array_sequence<T>();
     IEnumerator<T>* it = items->get_enumerator();
 
-    while (it->move_next()) {
+    for (int i = 0; i < count && it->move_next(); ++i) {
         sequence<T>* next = operation_items->append(it->get_current());
         if (next != operation_items) {
             delete operation_items;
@@ -365,5 +384,5 @@ ordinal generator<T>::get_base_ordinal_length() const {
         return lazy->get_ordinal_length();
     }
 
-    return ordinal::finite(static_cast<std::size_t>(base->get_length()));
+    return ordinal::finite(base->get_length());
 }

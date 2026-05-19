@@ -1,7 +1,6 @@
 #ifndef GENERATOR_HPP
 #define GENERATOR_HPP
 
-#include <cstddef>
 #include <functional>
 
 #include "ordinal.hpp"
@@ -25,7 +24,7 @@ public:
 
     struct remove_operation {
         ordinal index;
-        std::size_t count;
+        int count;
     };
 
     generator();
@@ -44,14 +43,14 @@ public:
     generator<T>* append(const sequence<T>* items) const;
     generator<T>* prepend(const T& item) const;
     generator<T>* prepend(const sequence<T>* items) const;
-    generator<T>* insert(const T& item, std::size_t index) const;
+    generator<T>* insert(const T& item, int index) const;
     generator<T>* insert(const T& item, const ordinal& index) const;
-    generator<T>* insert(const sequence<T>* items, std::size_t index) const;
+    generator<T>* insert(const sequence<T>* items, int index) const;
     generator<T>* insert(const sequence<T>* items, const ordinal& index) const;
-    generator<T>* remove(std::size_t index) const;
+    generator<T>* remove(int index) const;
     generator<T>* remove(const ordinal& index) const;
-    generator<T>* remove(std::size_t index, std::size_t count) const;
-    generator<T>* remove(const ordinal& index, std::size_t count) const;
+    generator<T>* remove(int index, int count) const;
+    generator<T>* remove(const ordinal& index, int count) const;
     void set_owner(lazy_sequence<T>* owner);
     void set_source(sequence<T>* source);
     
@@ -74,9 +73,9 @@ private:
     IEnumerator<T>* operation_iterator;
 
     ordinal current_index;
-    std::size_t source_index;
-    std::size_t inserted_count;
-    std::size_t remove_count;
+    int source_index;
+    int inserted_count;
+    int remove_count;
 
     void copy_operation_items(const sequence<T>* items);
     sequence<T>* get_base_source() const;

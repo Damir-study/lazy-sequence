@@ -1,38 +1,36 @@
 #ifndef ORDINAL_HPP
 #define ORDINAL_HPP
 
-#include <cstddef>
-
 class ordinal {
 public:
     ordinal();
-    ordinal(std::size_t finite_part);
-    ordinal(std::size_t omega_coefficient, std::size_t finite_part);
+    ordinal(int finite_part);
+    ordinal(int omega_coefficient, int finite_part);
 
-    static ordinal finite(std::size_t value);
+    static ordinal finite(int value);
     static ordinal omega();
-    static ordinal omega_times(std::size_t coefficient);
-    static ordinal omega_plus(std::size_t finite_part);
+    static ordinal omega_times(int coefficient);
+    static ordinal omega_plus(int finite_part);
 
     bool is_zero() const;
     bool is_finite() const;
     bool is_infinite() const;
 
-    std::size_t get_omega_coefficient() const;
-    std::size_t get_finite_part() const;
-    std::size_t get_count() const;
+    int get_omega_coefficient() const;
+    int get_finite_part() const;
+    int get_count() const;
 
     ordinal operator+(const ordinal& other) const;
-    ordinal operator+(std::size_t value) const;
+    ordinal operator+(int value) const;
     ordinal operator-(const ordinal& other) const;
-    ordinal operator-(std::size_t value) const;
-    ordinal operator*(std::size_t value) const;
+    ordinal operator-(int value) const;
+    ordinal operator*(int value) const;
 
     ordinal& operator+=(const ordinal& other);
-    ordinal& operator+=(std::size_t value);
+    ordinal& operator+=(int value);
     ordinal& operator-=(const ordinal& other);
-    ordinal& operator-=(std::size_t value);
-    ordinal& operator*=(std::size_t value);
+    ordinal& operator-=(int value);
+    ordinal& operator*=(int value);
 
     bool operator==(const ordinal& other) const;
     bool operator!=(const ordinal& other) const;
@@ -42,8 +40,8 @@ public:
     bool operator>=(const ordinal& other) const;
 
 private:
-    std::size_t omega_coefficient;
-    std::size_t finite_part;
+    int omega_coefficient;
+    int finite_part;
 };
 
 
