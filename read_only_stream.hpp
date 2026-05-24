@@ -2,13 +2,12 @@
 #define READ_ONLY_STREAM_HPP
 
 #include <functional>
-#include <string>
 
 #include "lazy_sequence.hpp"
 #include "sequence/sequence.h"
 
 template <typename T>
-using deserializer = std::function<T(const std::string&)>;
+using deserializer = std::function<T(const char*)>;
 
 template <typename T>
 class read_only_stream {
@@ -16,9 +15,10 @@ public:
     read_only_stream();
     read_only_stream(sequence<T>* source);
     read_only_stream(lazy_sequence<T>* source);
-    read_only_stream(const std::string& data, deserializer<T> convert);
+    read_only_stream(const char* data, deserializer<T> convert);
     read_only_stream(read_only_stream<T>* source);
     read_only_stream(const read_only_stream<T>& other);
+    read_only_stream<T>& operator=(const read_only_stream<T>& other);
     ~read_only_stream();
 
     bool is_end_of_stream() const;
@@ -36,7 +36,7 @@ private:
     enum source_kind {
         no_source_kind,
         sequence_source_kind,
-        string_source_kind,
+        text_source_kind,
         stream_source_kind
     };
 
@@ -44,7 +44,8 @@ private:
     sequence<T>* source;
     IEnumerator<T>* enumerator;
     read_only_stream<T>* source_stream;
-    std::string text;
+    char* text;
+    int text_length;
     int text_index;
     deserializer<T> convert;
     int position;
@@ -52,8 +53,8 @@ private:
     bool end_reached;
 
     void reset_enumerator();
-    bool read_string_token(std::string& token);
-    bool skip_string_token();
+    bool read_text_token(char*& token);
+    bool skip_text_token();
     void require_open() const;
 };
 
