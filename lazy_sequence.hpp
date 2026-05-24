@@ -35,16 +35,18 @@ public:
     sequence<T>* prepend(const T& item) override;
     sequence<T>* insert_at(const T& item, int index) override;
     sequence<T>* insert_at(const sequence<T>* items, int index);
+    sequence<T>* insert_at(const T& item, const ordinal& index);
+    sequence<T>* insert_at(const sequence<T>* items, const ordinal& index);
     sequence<T>* concat(const sequence<T>* list) override;
     sequence<T>* remove_at(int index);
+    sequence<T>* remove_at(const ordinal& index);
     sequence<T>* remove_range(int index, int count);
+    sequence<T>* remove_range(const ordinal& index, int count);
 
     IEnumerator<T>* get_enumerator() const override;
     lazy_sequence<T>* create_empty() const override;
 
 private:
-    lazy_sequence(sequence<T>* source, typename generator<T>::insert_item_operation operation);
-    lazy_sequence(sequence<T>* source, typename generator<T>::remove_operation operation);
     lazy_sequence(const sequence<T>* source, int start_index, int count);
     lazy_sequence(const sequence<T>* source, const ordinal& start_index, const ordinal& count);
 
@@ -58,6 +60,7 @@ private:
 
     void materialize_to(int index) const;
     void ensure_finite() const;
+    ordinal get_tail_length_from(const ordinal& start) const;
 
     class lazy_enumerator;
 };
