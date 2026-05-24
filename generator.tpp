@@ -1,5 +1,4 @@
 #include "generator.hpp"
-#include "sequence/mutable_array_sequence.h"
 #include <stdexcept>
 
 template <typename T>
@@ -10,11 +9,10 @@ generator<T>::generator()
       rule(nullptr),
       operation(no_operation_kind),
       operation_index(ordinal::finite(0)),
-      operation_items(nullptr),
-      operation_iterator(nullptr),
+      inserted_item(nullptr),
       current_index(ordinal::finite(0)),
       source_index(0),
-      inserted_count(0),
+      inserted_item_used(false),
       remove_count(0) {}
 
 template <typename T>
@@ -25,11 +23,10 @@ generator<T>::generator(lazy_sequence<T>* owner, std::function<T(sequence<T>*)> 
       rule(rule),
       operation(no_operation_kind),
       operation_index(ordinal::finite(0)),
-      operation_items(nullptr),
-      operation_iterator(nullptr),
+      inserted_item(nullptr),
       current_index(ordinal::finite(0)),
       source_index(0),
-      inserted_count(0),
+      inserted_item_used(false),
       remove_count(0) {}
 
 template <typename T>
@@ -40,45 +37,17 @@ generator<T>::generator(lazy_sequence<T>* owner, sequence<T>* source, insert_ite
       rule(nullptr),
       operation(insert_operation_kind),
       operation_index(operation_data.index),
-      operation_items(nullptr),
-      operation_iterator(nullptr),
+      inserted_item(nullptr),
       current_index(ordinal::finite(0)),
       source_index(0),
-      inserted_count(0),
+      inserted_item_used(false),
       remove_count(0) {
     if (source == nullptr) {
         throw std::invalid_argument("Generator source is null");
     }
 
-    T buffer[1] = {operation_data.item};
-    operation_items = new mutable_array_sequence<T>(buffer, 1);
-
+    inserted_item = new T(operation_data.item);
     source_iterator = source->get_enumerator();
-    operation_iterator = operation_items->get_enumerator();
-}
-
-template <typename T>
-generator<T>::generator(lazy_sequence<T>* owner, sequence<T>* source, insert_sequence_operation operation_data)
-    : owner(owner),
-      source(source),
-      source_iterator(nullptr),
-      rule(nullptr),
-      operation(insert_operation_kind),
-      operation_index(operation_data.index),
-      operation_items(nullptr),
-      operation_iterator(nullptr),
-      current_index(ordinal::finite(0)),
-      source_index(0),
-      inserted_count(0),
-      remove_count(0) {
-    if (source == nullptr) {
-        throw std::invalid_argument("Generator source is null");
-    }
-
-    copy_operation_items(operation_data.items);
-
-    source_iterator = source->get_enumerator();
-    operation_iterator = operation_items == nullptr ? nullptr : operation_items->get_enumerator();
 }
 
 template <typename T>
@@ -89,11 +58,10 @@ generator<T>::generator(lazy_sequence<T>* owner, sequence<T>* source, remove_ope
       rule(nullptr),
       operation(remove_operation_kind),
       operation_index(operation_data.index),
-      operation_items(nullptr),
-      operation_iterator(nullptr),
+      inserted_item(nullptr),
       current_index(ordinal::finite(0)),
       source_index(0),
-      inserted_count(0),
+      inserted_item_used(false),
       remove_count(operation_data.count) {
     if (source == nullptr) {
         throw std::invalid_argument("Generator source is null");
@@ -113,25 +81,15 @@ generator<T>::generator(const generator<T>& other)
       rule(other.rule),
       operation(other.operation),
       operation_index(other.operation_index),
-      operation_items(nullptr),
-      operation_iterator(nullptr),
+      inserted_item(other.inserted_item == nullptr ? nullptr : new T(*other.inserted_item)),
       current_index(other.current_index),
       source_index(other.source_index),
-      inserted_count(other.inserted_count),
+      inserted_item_used(other.inserted_item_used),
       remove_count(other.remove_count) {
-    copy_operation_items(other.operation_items);
-
     source_iterator = source == nullptr ? nullptr : source->get_enumerator();
-    operation_iterator = operation_items == nullptr ? nullptr : operation_items->get_enumerator();
 
     for (int i = 0; i < source_index; ++i) {
         if (source_iterator == nullptr || !source_iterator->move_next()) {
-            throw std::out_of_range("IndexOutOfRange");
-        }
-    }
-
-    for (int i = 0; i < inserted_count; ++i) {
-        if (operation_iterator == nullptr || !operation_iterator->move_next()) {
             throw std::out_of_range("IndexOutOfRange");
         }
     }
@@ -140,8 +98,7 @@ generator<T>::generator(const generator<T>& other)
 template <typename T>
 generator<T>::~generator() {
     delete source_iterator;
-    delete operation_iterator;
-    delete operation_items;
+    delete inserted_item;
 }
 
 template <typename T>
@@ -162,14 +119,13 @@ T generator<T>::get_next() {
 
     bool should_insert = operation == insert_operation_kind &&
                          current_index >= operation_index &&
-                         operation_items != nullptr &&
-                         inserted_count < operation_items->get_length();
+                         inserted_item != nullptr &&
+                         !inserted_item_used;
 
     if (should_insert) {
-        operation_iterator->move_next();
-        ++inserted_count;
+        inserted_item_used = true;
         current_index += 1;
-        return operation_iterator->get_current();
+        return *inserted_item;
     }
 
     bool should_remove = operation == remove_operation_kind &&
@@ -201,8 +157,8 @@ bool generator<T>::has_next() const {
     }
 
     ordinal length = get_base_ordinal_length();
-    if (operation == insert_operation_kind && operation_items != nullptr) {
-        ordinal inserted_length = ordinal::finite(operation_items->get_length());
+    if (operation == insert_operation_kind && inserted_item != nullptr) {
+        ordinal inserted_length = ordinal::finite(1);
         if (length.is_finite() || operation_index >= length ||
             operation_index.get_omega_coefficient() == length.get_omega_coefficient()) {
             length += inserted_length;
@@ -210,13 +166,13 @@ bool generator<T>::has_next() const {
     }
     if (operation == remove_operation_kind && operation_index < length) {
         if (length.is_finite() && operation_index.is_finite()) {
-            int available = static_cast<int>(length.get_count() - operation_index.get_count());
+            int available = length.get_count() - operation_index.get_count();
             int removed = remove_count > available ? available : remove_count;
             length -= ordinal::finite(removed);
         } else if (length.is_infinite() &&
                    operation_index.is_infinite() &&
                    operation_index.get_omega_coefficient() == length.get_omega_coefficient()) {
-            int available = static_cast<int>(length.get_finite_part() - operation_index.get_finite_part());
+            int available = length.get_finite_part() - operation_index.get_finite_part();
             int removed = remove_count > available ? available : remove_count;
             length -= removed;
         }
@@ -227,22 +183,22 @@ bool generator<T>::has_next() const {
 
 template <typename T>
 generator<T>* generator<T>::append(const T& item) const {
-    return insert(item, get_base_ordinal_length());
-}
-
-template <typename T>
-generator<T>* generator<T>::append(const sequence<T>* items) const {
-    return insert(items, get_base_ordinal_length());
+    sequence<T>* base = get_base_source();
+    if (base == nullptr) {
+        throw std::logic_error("Generator has no source");
+    }
+    generator<T>::insert_item_operation operation_data{get_base_ordinal_length(), item};
+    return new generator<T>(owner, base, operation_data);
 }
 
 template <typename T>
 generator<T>* generator<T>::prepend(const T& item) const {
-    return insert(item, ordinal::finite(0));
-}
-
-template <typename T>
-generator<T>* generator<T>::prepend(const sequence<T>* items) const {
-    return insert(items, ordinal::finite(0));
+    sequence<T>* base = get_base_source();
+    if (base == nullptr) {
+        throw std::logic_error("Generator has no source");
+    }
+    generator<T>::insert_item_operation operation_data{ordinal::finite(0), item};
+    return new generator<T>(owner, base, operation_data);
 }
 
 template <typename T>
@@ -250,34 +206,11 @@ generator<T>* generator<T>::insert(const T& item, int index) const {
     if (index < 0) {
         throw std::out_of_range("IndexOutOfRange");
     }
-    return insert(item, ordinal::finite(index));
-}
-
-template <typename T>
-generator<T>* generator<T>::insert(const T& item, const ordinal& index) const {
     sequence<T>* base = get_base_source();
     if (base == nullptr) {
         throw std::logic_error("Generator has no source");
     }
-    generator<T>::insert_item_operation operation_data{index, item};
-    return new generator<T>(owner, base, operation_data);
-}
-
-template <typename T>
-generator<T>* generator<T>::insert(const sequence<T>* items, int index) const {
-    if (index < 0) {
-        throw std::out_of_range("IndexOutOfRange");
-    }
-    return insert(items, ordinal::finite(index));
-}
-
-template <typename T>
-generator<T>* generator<T>::insert(const sequence<T>* items, const ordinal& index) const {
-    sequence<T>* base = get_base_source();
-    if (base == nullptr) {
-        throw std::logic_error("Generator has no source");
-    }
-    generator<T>::insert_sequence_operation operation_data{index, items};
+    generator<T>::insert_item_operation operation_data{ordinal::finite(index), item};
     return new generator<T>(owner, base, operation_data);
 }
 
@@ -286,11 +219,6 @@ generator<T>* generator<T>::remove(int index) const {
     if (index < 0) {
         throw std::out_of_range("IndexOutOfRange");
     }
-    return remove(ordinal::finite(index), 1);
-}
-
-template <typename T>
-generator<T>* generator<T>::remove(const ordinal& index) const {
     return remove(index, 1);
 }
 
@@ -299,19 +227,11 @@ generator<T>* generator<T>::remove(int index, int count) const {
     if (index < 0 || count < 0) {
         throw std::out_of_range("IndexOutOfRange");
     }
-    return remove(ordinal::finite(index), count);
-}
-
-template <typename T>
-generator<T>* generator<T>::remove(const ordinal& index, int count) const {
-    if (count < 0) {
-        throw std::out_of_range("IndexOutOfRange");
-    }
     sequence<T>* base = get_base_source();
     if (base == nullptr) {
         throw std::logic_error("Generator has no source");
     }
-    generator<T>::remove_operation operation_data{index, count};
+    generator<T>::remove_operation operation_data{ordinal::finite(index), count};
     return new generator<T>(owner, base, operation_data);
 }
 
@@ -335,30 +255,6 @@ void generator<T>::set_source(sequence<T>* source) {
             }
         }
     }
-}
-
-template <typename T>
-void generator<T>::copy_operation_items(const sequence<T>* items) {
-    delete operation_items;
-    operation_items = nullptr;
-
-    if (items == nullptr) {
-        return;
-    }
-
-    int count = items->get_length();
-    operation_items = new mutable_array_sequence<T>();
-    IEnumerator<T>* it = items->get_enumerator();
-
-    for (int i = 0; i < count && it->move_next(); ++i) {
-        sequence<T>* next = operation_items->append(it->get_current());
-        if (next != operation_items) {
-            delete operation_items;
-            operation_items = next;
-        }
-    }
-
-    delete it;
 }
 
 template <typename T>
