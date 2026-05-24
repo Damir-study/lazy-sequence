@@ -1,6 +1,5 @@
 #include "lazy_sequence.hpp"
 
-#include <limits>
 #include <stdexcept>
 
 template <typename T>
@@ -9,7 +8,9 @@ lazy_sequence<T>::lazy_sequence()
       source(nullptr),
       suffix(nullptr),
       gen(nullptr),
-      size(ordinal::finite(0)) {}
+      size(ordinal::finite(0)),
+      slice_start(ordinal::finite(0)),
+      slice_enabled(false) {}
 
 template <typename T>
 lazy_sequence<T>::lazy_sequence(const T* source_items, int count)
@@ -17,7 +18,9 @@ lazy_sequence<T>::lazy_sequence(const T* source_items, int count)
       source(nullptr),
       suffix(nullptr),
       gen(nullptr),
-      size(ordinal::finite(0)) {
+      size(ordinal::finite(0)),
+      slice_start(ordinal::finite(0)),
+      slice_enabled(false) {
     if (count < 0) {
         throw std::invalid_argument("Count cannot be negative");
     }
@@ -34,7 +37,9 @@ lazy_sequence<T>::lazy_sequence(const sequence<T>* seq)
       source(nullptr),
       suffix(nullptr),
       gen(nullptr),
-      size(ordinal::finite(0)) {
+      size(ordinal::finite(0)),
+      slice_start(ordinal::finite(0)),
+      slice_enabled(false) {
     if (seq == nullptr) {
         return;
     }
@@ -65,7 +70,9 @@ lazy_sequence<T>::lazy_sequence(std::function<T(sequence<T>*)> rule,
       source(nullptr),
       suffix(nullptr),
       gen(nullptr),
-      size(length) {
+      size(length),
+      slice_start(ordinal::finite(0)),
+      slice_enabled(false) {
     if (!rule) {
         throw std::invalid_argument("Rule is empty");
     }
@@ -92,7 +99,9 @@ lazy_sequence<T>::lazy_sequence(sequence<T>* source, typename generator<T>::inse
       source(nullptr),
       suffix(nullptr),
       gen(nullptr),
-      size(ordinal::finite(0)) {
+      size(ordinal::finite(0)),
+      slice_start(ordinal::finite(0)),
+      slice_enabled(false) {
     if (source == nullptr) {
         throw std::invalid_argument("Source sequence is null");
     }
@@ -125,55 +134,14 @@ lazy_sequence<T>::lazy_sequence(sequence<T>* source, typename generator<T>::inse
 }
 
 template <typename T>
-lazy_sequence<T>::lazy_sequence(sequence<T>* source, typename generator<T>::insert_sequence_operation operation)
-    : items(new mutable_array_sequence<T>()),
-      source(nullptr),
-      suffix(nullptr),
-      gen(nullptr),
-      size(ordinal::finite(0)) {
-    if (source == nullptr) {
-        throw std::invalid_argument("Source sequence is null");
-    }
-
-    lazy_sequence<T>* source_copy = new lazy_sequence<T>(source);
-    generator<T>* new_generator = nullptr;
-
-    try {
-        ordinal source_size = source_copy->get_ordinal_length();
-        int inserted_count = 0;
-        if (operation.items != nullptr) {
-            inserted_count = operation.items->get_length();
-        }
-
-        if (operation.index > source_size) {
-            throw std::out_of_range("IndexOutOfRange");
-        }
-
-        if (source_size.is_finite() ||
-            operation.index.get_omega_coefficient() == source_size.get_omega_coefficient()) {
-            size = source_size + inserted_count;
-        } else {
-            size = source_size;
-        }
-
-        new_generator = new generator<T>(this, source_copy, operation);
-    } catch (...) {
-        delete new_generator;
-        delete source_copy;
-        throw;
-    }
-
-    this->source = source_copy;
-    gen = new_generator;
-}
-
-template <typename T>
 lazy_sequence<T>::lazy_sequence(sequence<T>* source, typename generator<T>::remove_operation operation)
     : items(new mutable_array_sequence<T>()),
       source(nullptr),
       suffix(nullptr),
       gen(nullptr),
-      size(ordinal::finite(0)) {
+      size(ordinal::finite(0)),
+      slice_start(ordinal::finite(0)),
+      slice_enabled(false) {
     if (source == nullptr) {
         throw std::invalid_argument("Source sequence is null");
     }
@@ -191,13 +159,13 @@ lazy_sequence<T>::lazy_sequence(sequence<T>* source, typename generator<T>::remo
         } else if (operation.index >= source_size) {
             throw std::out_of_range("IndexOutOfRange");
         } else if (source_size.is_finite()) {
-            int source_length = static_cast<int>(source_size.get_count());
-            int index = static_cast<int>(operation.index.get_count());
+            int source_length = source_size.get_count();
+            int index = operation.index.get_count();
             int available = source_length - index;
             int removed = operation.count > available ? available : operation.count;
             size = ordinal::finite(source_length - removed);
         } else if (operation.index.get_omega_coefficient() == source_size.get_omega_coefficient()) {
-            int available = static_cast<int>(source_size.get_finite_part() - operation.index.get_finite_part());
+            int available = source_size.get_finite_part() - operation.index.get_finite_part();
             int removed = operation.count > available ? available : operation.count;
             size = source_size - removed;
         } else {
@@ -217,33 +185,40 @@ lazy_sequence<T>::lazy_sequence(sequence<T>* source, typename generator<T>::remo
 
 template <typename T>
 lazy_sequence<T>::lazy_sequence(const sequence<T>* source, int start_index, int count)
+    : lazy_sequence(source, ordinal::finite(start_index), ordinal::finite(count)) {
+    if (start_index < 0 || count < 0) {
+        throw std::out_of_range("IndexOutOfRange");
+    }
+}
+
+template <typename T>
+lazy_sequence<T>::lazy_sequence(const sequence<T>* source, const ordinal& start_index, const ordinal& count)
     : items(new mutable_array_sequence<T>()),
       source(nullptr),
       suffix(nullptr),
       gen(nullptr),
-      size(ordinal::finite(0)) {
+      size(count),
+      slice_start(start_index),
+      slice_enabled(true) {
     if (source == nullptr) {
         throw std::invalid_argument("Source sequence is null");
     }
-    if (start_index < 0 || count < 0) {
-        throw std::out_of_range("IndexOutOfRange");
-    }
 
     lazy_sequence<T>* source_copy = new lazy_sequence<T>(source);
-    generator<T>* new_generator = nullptr;
 
     try {
-        typename generator<T>::remove_operation operation{ordinal::finite(0), start_index};
-        size = ordinal::finite(count);
-        new_generator = new generator<T>(this, source_copy, operation);
+        ordinal source_size = source_copy->get_ordinal_length();
+        if (start_index > source_size ||
+            (!count.is_zero() && start_index >= source_size) ||
+            start_index + count > source_size) {
+            throw std::out_of_range("IndexOutOfRange");
+        }
     } catch (...) {
-        delete new_generator;
         delete source_copy;
         throw;
     }
 
     this->source = source_copy;
-    gen = new_generator;
 }
 
 template <typename T>
@@ -252,7 +227,9 @@ lazy_sequence<T>::lazy_sequence(const lazy_sequence<T>& list)
       source(nullptr),
       suffix(nullptr),
       gen(nullptr),
-      size(ordinal::finite(0)) {
+      size(ordinal::finite(0)),
+      slice_start(ordinal::finite(0)),
+      slice_enabled(false) {
     *this = list;
 }
 
@@ -289,6 +266,8 @@ lazy_sequence<T>& lazy_sequence<T>::operator=(const lazy_sequence<T>& list) {
     suffix = new_suffix;
     gen = new_gen;
     size = list.size;
+    slice_start = list.slice_start;
+    slice_enabled = list.slice_enabled;
 
     if (gen != nullptr) {
         gen->set_owner(this);
@@ -353,6 +332,13 @@ const T& lazy_sequence<T>::get(const ordinal& index) const {
             return source->get(index);
         }
         return suffix->get(index - source_size);
+    }
+
+    if (slice_enabled) {
+        if (source == nullptr) {
+            throw std::out_of_range("IndexOutOfRange");
+        }
+        return source->get(slice_start + index);
     }
 
     if (index.is_infinite() && source != nullptr) {
@@ -435,6 +421,55 @@ sequence<T>* lazy_sequence<T>::insert_at(const T& item, int index) {
         item
     };
     return new lazy_sequence<T>(this, operation);
+}
+
+template <typename T>
+sequence<T>* lazy_sequence<T>::insert_at(const sequence<T>* insert_items, int index) {
+    if (index < 0) {
+        throw std::out_of_range("IndexOutOfRange");
+    }
+    if (insert_items == nullptr) {
+        return new lazy_sequence<T>(*this);
+    }
+
+    ordinal insert_index = ordinal::finite(index);
+    if (insert_index > size) {
+        throw std::out_of_range("IndexOutOfRange");
+    }
+
+    lazy_sequence<T>* prefix = nullptr;
+    lazy_sequence<T>* middle = nullptr;
+    lazy_sequence<T>* suffix_part = nullptr;
+    sequence<T>* left = nullptr;
+    sequence<T>* result = nullptr;
+
+    try {
+        prefix = new lazy_sequence<T>(this, ordinal::finite(0), insert_index);
+        middle = new lazy_sequence<T>(insert_items);
+        ordinal suffix_size = size.is_finite() ? ordinal::finite(size.get_count() - index) : size;
+        suffix_part = new lazy_sequence<T>(this, insert_index, suffix_size);
+
+        left = prefix->concat(middle);
+        lazy_sequence<T>* left_lazy = dynamic_cast<lazy_sequence<T>*>(left);
+        if (left_lazy == nullptr) {
+            throw std::logic_error("Concat result is not lazy_sequence");
+        }
+
+        result = left_lazy->concat(suffix_part);
+    } catch (...) {
+        delete result;
+        delete left;
+        delete suffix_part;
+        delete middle;
+        delete prefix;
+        throw;
+    }
+
+    delete left;
+    delete suffix_part;
+    delete middle;
+    delete prefix;
+    return result;
 }
 
 template <typename T>

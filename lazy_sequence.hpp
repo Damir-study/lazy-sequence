@@ -34,6 +34,7 @@ public:
     sequence<T>* append(const T& item) override;
     sequence<T>* prepend(const T& item) override;
     sequence<T>* insert_at(const T& item, int index) override;
+    sequence<T>* insert_at(const sequence<T>* items, int index);
     sequence<T>* concat(const sequence<T>* list) override;
     sequence<T>* remove_at(int index);
     sequence<T>* remove_range(int index, int count);
@@ -43,15 +44,17 @@ public:
 
 private:
     lazy_sequence(sequence<T>* source, typename generator<T>::insert_item_operation operation);
-    lazy_sequence(sequence<T>* source, typename generator<T>::insert_sequence_operation operation);
     lazy_sequence(sequence<T>* source, typename generator<T>::remove_operation operation);
     lazy_sequence(const sequence<T>* source, int start_index, int count);
+    lazy_sequence(const sequence<T>* source, const ordinal& start_index, const ordinal& count);
 
     mutable mutable_array_sequence<T>* items;
     lazy_sequence<T>* source;
     lazy_sequence<T>* suffix;
     mutable generator<T>* gen;
     ordinal size;
+    ordinal slice_start;
+    bool slice_enabled;
 
     void materialize_to(int index) const;
     void ensure_finite() const;
