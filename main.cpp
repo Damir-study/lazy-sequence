@@ -117,7 +117,7 @@ int next_fibonacci(sequence<int>* items) {
     }
     delete it;
 
-    return previous * last - 2;
+    return previous + last;
 }
 
 char next_alternating_char(sequence<char>* items) {
