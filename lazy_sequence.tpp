@@ -234,14 +234,16 @@ const T& lazy_sequence<T>::get(const ordinal& index) const {
     }
 
     if (suffix != nullptr) {
-        ordinal source_size = source == nullptr ? ordinal::finite(0) : source->get_ordinal_length();
+        if (source == nullptr) {
+            throw std::logic_error("Invalid concat node");
+        }
+        ordinal source_size = source->get_ordinal_length();
+        
         if (index < source_size) {
             return source->get(index);
         }
 
-        ordinal suffix_index = source_size.is_finite() && index.is_infinite()
-                                   ? index
-                                   : index - source_size;
+        ordinal suffix_index = source_size.is_finite() && index.is_infinite() ? index : index - source_size;
         return suffix->get(suffix_index);
     }
 
@@ -250,10 +252,6 @@ const T& lazy_sequence<T>::get(const ordinal& index) const {
             throw std::out_of_range("IndexOutOfRange");
         }
         return source->get(slice_start + index);
-    }
-
-    if (index.is_infinite() && source != nullptr) {
-        return source->get(index);
     }
 
     if (index.is_infinite()) {

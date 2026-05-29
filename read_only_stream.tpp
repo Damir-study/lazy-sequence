@@ -2,7 +2,6 @@
 
 #include <cctype>
 #include <stdexcept>
-#include <type_traits>
 
 template <typename T>
 read_only_stream<T>::read_only_stream()
@@ -13,6 +12,7 @@ read_only_stream<T>::read_only_stream()
       text(nullptr),
       text_length(0),
       text_index(0),
+      text_read_mode(token_text_read_kind),
       position(0),
       opened(false),
       end_reached(true) {}
@@ -26,6 +26,7 @@ read_only_stream<T>::read_only_stream(sequence<T>* source)
       text(nullptr),
       text_length(0),
       text_index(0),
+      text_read_mode(token_text_read_kind),
       position(0),
       opened(false),
       end_reached(source == nullptr) {}
@@ -36,6 +37,10 @@ read_only_stream<T>::read_only_stream(lazy_sequence<T>* source)
 
 template <typename T>
 read_only_stream<T>::read_only_stream(const char* data, deserializer<T> convert)
+    : read_only_stream(data, convert, false) {}
+
+template <typename T>
+read_only_stream<T>::read_only_stream(const char* data, deserializer<T> convert, bool read_by_char)
     : kind(text_source_kind),
       source(nullptr),
       enumerator(nullptr),
@@ -43,6 +48,7 @@ read_only_stream<T>::read_only_stream(const char* data, deserializer<T> convert)
       text(nullptr),
       text_length(0),
       text_index(0),
+      text_read_mode(read_by_char ? char_text_read_kind : token_text_read_kind),
       convert(convert),
       position(0),
       opened(false),
@@ -75,6 +81,7 @@ read_only_stream<T>::read_only_stream(read_only_stream<T>* source)
       text(nullptr),
       text_length(0),
       text_index(0),
+      text_read_mode(token_text_read_kind),
       position(0),
       opened(false),
       end_reached(source == nullptr) {}
@@ -88,6 +95,7 @@ read_only_stream<T>::read_only_stream(const read_only_stream<T>& other)
       text(nullptr),
       text_length(other.text_length),
       text_index(0),
+      text_read_mode(other.text_read_mode),
       convert(other.convert),
       position(0),
       opened(false),
@@ -131,6 +139,7 @@ read_only_stream<T>& read_only_stream<T>::operator=(const read_only_stream<T>& o
     text = new_text;
     text_length = other.text_length;
     text_index = 0;
+    text_read_mode = other.text_read_mode;
     convert = other.convert;
     position = 0;
     opened = false;
@@ -168,13 +177,12 @@ bool read_only_stream<T>::is_end_of_stream() const {
     }
 
     if (kind == text_source_kind) {
-        if constexpr (std::is_same<T, char>::value) {
+        if (text_read_mode == char_text_read_kind) {
             return text_index >= text_length;
         }
 
         int index = text_index;
-        while (index < text_length &&
-               std::isspace(static_cast<unsigned char>(text[index]))) {
+        while (index < text_length && std::isspace(static_cast<unsigned char>(text[index]))) {
             ++index;
         }
         return index >= text_length;
@@ -331,7 +339,7 @@ void read_only_stream<T>::reset_enumerator() {
 
 template <typename T>
 bool read_only_stream<T>::read_text_token(char*& token) {
-    if constexpr (std::is_same<T, char>::value) {
+    if (text_read_mode == char_text_read_kind) {
         if (text_index >= text_length) {
             return false;
         }
@@ -367,7 +375,7 @@ bool read_only_stream<T>::read_text_token(char*& token) {
 
 template <typename T>
 bool read_only_stream<T>::skip_text_token() {
-    if constexpr (std::is_same<T, char>::value) {
+    if (text_read_mode == char_text_read_kind) {
         if (text_index >= text_length) {
             return false;
         }

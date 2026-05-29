@@ -9,10 +9,10 @@ INCLUDE_FLAGS = -I. -Isequence
 
 DEBUG_TARGET = lab4_ui.exe
 RELEASE_TARGET = lab4_release.exe
-TEST_TARGET = lab4_tests.exe
+TEST_TARGET = tests.exe
 
-SOURCES = lab4_main.cpp substring_counter.cpp ordinal.cpp
-TEST_SOURCES = lab4_tests.cpp substring_counter.cpp ordinal.cpp
+SOURCES = main.cpp substring_counter.cpp ordinal.cpp
+TEST_SOURCES = tests.cpp substring_counter.cpp ordinal.cpp
 
 ROOT_HEADERS = generator.hpp lazy_sequence.hpp ordinal.hpp \
                read_only_stream.hpp substring_counter.hpp write_only_stream.hpp
@@ -93,6 +93,6 @@ help:
 	@echo "  release      - build optimized lab4_release.exe"
 	@echo "  run          - build and run lab4_ui.exe"
 	@echo "  run_release  - build and run lab4_release.exe"
-	@echo "  test         - build and run lab4_tests.exe"
+	@echo "  test         - build and run tests.exe"
 	@echo "  clean        - remove lab4 build files"
 	@echo "  help         - show this help"

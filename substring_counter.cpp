@@ -61,8 +61,7 @@ int substring_counter::count(read_only_stream<char>* stream, int max_read_count)
     int matched = 0;
     int read_count = 0;
 
-    while ((max_read_count == -1 || read_count < max_read_count) &&
-           !stream->is_end_of_stream()) {
+    while ((max_read_count == -1 || read_count < max_read_count) && !stream->is_end_of_stream()) {
         char current = stream->read();
         ++read_count;
 

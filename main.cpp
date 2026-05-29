@@ -1,4 +1,3 @@
-#include <cstdlib>
 #include <exception>
 #include <iostream>
 #include <limits>
@@ -81,7 +80,7 @@ void print_ordinal(const ordinal& value) {
 }
 
 ordinal read_ordinal() {
-    std::cout << "Ordinal is omega_coefficient * w0 + finite_part.\n";
+    std::cout << "Ordinal is w0 * omega_coefficient + finite_part.\n";
     int omega = read_int("omega coefficient: ");
     int finite = read_int("finite part: ");
     return ordinal(omega, finite);
@@ -118,7 +117,7 @@ int next_fibonacci(sequence<int>* items) {
     }
     delete it;
 
-    return previous + last;
+    return previous * last - 2;
 }
 
 char next_alternating_char(sequence<char>* items) {
@@ -488,7 +487,7 @@ void substring_counter_menu() {
                 char text[text_buffer_size];
                 read_text(text, text_buffer_size, "Text: ");
 
-                read_only_stream<char> stream(text, first_char);
+                read_only_stream<char> stream(text, first_char, true);
                 stream.open();
                 int result = counter.count(&stream);
                 stream.close();
@@ -526,83 +525,6 @@ void substring_counter_menu() {
     }
 }
 
-void automatic_demo() {
-    print_separator();
-    std::cout << "Automatic demo\n";
-
-    try {
-        int base_items[] = {1, 2, 3, 4};
-        lazy_sequence<int> finite(base_items, 4);
-        print_lazy_preview("finite", &finite, 10);
-
-        std::cout << "get_first: " << finite.get_first() << "\n";
-        std::cout << "get_last: " << finite.get_last() << "\n";
-        std::cout << "get(2): " << finite.get(2) << "\n";
-        std::cout << "get_length: " << finite.get_length() << "\n";
-        std::cout << "get_ordinal_length: ";
-        print_ordinal(finite.get_ordinal_length());
-        std::cout << "\n";
-        std::cout << "is_infinite: " << (finite.is_infinite() ? "true" : "false") << "\n";
-        std::cout << "get_materialized_count: " << finite.get_materialized_count() << "\n";
-        print_finite_sequence("get_materialized_items", finite.get_materialized_items());
-
-        sequence<int>* sub = finite.get_subsequence(1, 3);
-        print_finite_sequence("get_subsequence(1, 3)", sub);
-        delete sub;
-
-        sequence<int>* changed = finite.append(5);
-        lazy_sequence<int>* lazy_changed = dynamic_cast<lazy_sequence<int>*>(changed);
-        print_lazy_preview("append(5)", lazy_changed, 10);
-        delete changed;
-
-        changed = finite.prepend(0);
-        lazy_changed = dynamic_cast<lazy_sequence<int>*>(changed);
-        print_lazy_preview("prepend(0)", lazy_changed, 10);
-        delete changed;
-
-        changed = finite.insert_at(99, 2);
-        lazy_changed = dynamic_cast<lazy_sequence<int>*>(changed);
-        print_lazy_preview("insert_at(99, 2)", lazy_changed, 10);
-        delete changed;
-
-        int insert_items[] = {7, 8};
-        mutable_array_sequence<int> insert_seq(insert_items, 2);
-        changed = finite.insert_at(&insert_seq, 1);
-        lazy_changed = dynamic_cast<lazy_sequence<int>*>(changed);
-        print_lazy_preview("insert_at(sequence, 1)", lazy_changed, 10);
-        delete changed;
-
-        changed = finite.remove_at(1);
-        lazy_changed = dynamic_cast<lazy_sequence<int>*>(changed);
-        print_lazy_preview("remove_at(1)", lazy_changed, 10);
-        delete changed;
-
-        changed = finite.remove_range(1, 2);
-        lazy_changed = dynamic_cast<lazy_sequence<int>*>(changed);
-        print_lazy_preview("remove_range(1, 2)", lazy_changed, 10);
-        delete changed;
-
-        int tail_items[] = {10, 20, 30};
-        lazy_sequence<int> infinite(next_natural, nullptr);
-        lazy_sequence<int> tail(tail_items, 3);
-        changed = infinite.concat(&tail);
-        lazy_changed = dynamic_cast<lazy_sequence<int>*>(changed);
-        print_lazy_preview("infinite concat finite tail", lazy_changed, 8);
-        std::cout << "get(w0): " << lazy_changed->get(ordinal::omega()) << "\n";
-        std::cout << "get(w0+1): " << lazy_changed->get(ordinal::omega_plus(1)) << "\n";
-        delete changed;
-
-        char text[] = "ababa";
-        read_only_stream<char> stream(text, first_char);
-        substring_counter counter("aba");
-        stream.open();
-        std::cout << "substring_counter(\"aba\") in \"ababa\": " << counter.count(&stream) << "\n";
-        stream.close();
-    } catch (const std::exception& error) {
-        std::cout << "Demo error: " << error.what() << "\n";
-    }
-}
-
 int main() {
     lazy_sequence<int>* current = nullptr;
 
@@ -620,7 +542,6 @@ int main() {
         std::cout << "2) Test LazySequence decomposition / constructors\n";
         std::cout << "3) Test LazySequence operations\n";
         std::cout << "4) Test substring_counter\n";
-        std::cout << "5) Run automatic demo\n";
         std::cout << "0) Exit\n";
         std::cout << "Choice: ";
 
@@ -632,20 +553,25 @@ int main() {
         }
 
         try {
-            if (choice == 1) {
+            switch (choice) {
+            case 1: {
                 lazy_sequence<int>* next = create_sequence_menu();
                 delete current;
                 current = next;
-            } else if (choice == 2) {
+                break;
+            }
+            case 2:
                 inspect_menu(current);
-            } else if (choice == 3) {
+                break;
+            case 3:
                 operations_menu(current);
-            } else if (choice == 4) {
+                break;
+            case 4:
                 substring_counter_menu();
-            } else if (choice == 5) {
-                automatic_demo();
-            } else {
+                break;
+            default:
                 std::cout << "Unknown choice.\n";
+                break;
             }
         } catch (const std::exception& error) {
             std::cout << "Error: " << error.what() << "\n";

@@ -16,6 +16,7 @@ public:
     read_only_stream(sequence<T>* source);
     read_only_stream(lazy_sequence<T>* source);
     read_only_stream(const char* data, deserializer<T> convert);
+    read_only_stream(const char* data, deserializer<T> convert, bool read_by_char);
     read_only_stream(read_only_stream<T>* source);
     read_only_stream(const read_only_stream<T>& other);
     read_only_stream<T>& operator=(const read_only_stream<T>& other);
@@ -40,6 +41,11 @@ private:
         stream_source_kind
     };
 
+    enum text_read_kind {
+        token_text_read_kind,
+        char_text_read_kind
+    };
+
     source_kind kind;
     sequence<T>* source;
     IEnumerator<T>* enumerator;
@@ -47,6 +53,7 @@ private:
     char* text;
     int text_length;
     int text_index;
+    text_read_kind text_read_mode;
     deserializer<T> convert;
     int position;
     bool opened;

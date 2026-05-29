@@ -53,7 +53,7 @@ private:
     mutable mutable_array_sequence<T>* items;
     lazy_sequence<T>* source;
     lazy_sequence<T>* suffix;
-    mutable generator<T>* gen;
+    generator<T>* gen;
     ordinal size;
     ordinal slice_start;
     bool slice_enabled;

@@ -309,7 +309,7 @@ TEST(lazy_sequence_operations_test, remove_ordinal_range_from_infinite_with_tail
 }
 
 TEST(read_only_stream_test, text_stream_reads_chars_one_by_one) {
-    read_only_stream<char> stream("ab cd", first_char_token);
+    read_only_stream<char> stream("ab cd", first_char_token, true);
 
     stream.open();
     EXPECT_EQ(stream.read(), 'a');
@@ -349,7 +349,7 @@ TEST(read_only_stream_test, copy_constructor_preserves_seek_position_for_text_st
 }
 
 TEST(substring_counter_test, counts_overlapping_occurrences_in_text_stream) {
-    read_only_stream<char> stream("ababa", first_char_token);
+    read_only_stream<char> stream("ababa", first_char_token, true);
     substring_counter counter("aba");
 
     stream.open();
@@ -386,7 +386,7 @@ TEST(substring_counter_test, count_with_limit_supports_infinite_streams) {
 }
 
 TEST(substring_counter_test, handles_no_matches_and_invalid_arguments) {
-    read_only_stream<char> stream("abcdef", first_char_token);
+    read_only_stream<char> stream("abcdef", first_char_token, true);
     substring_counter counter("zzz");
 
     stream.open();
@@ -399,7 +399,7 @@ TEST(substring_counter_test, handles_no_matches_and_invalid_arguments) {
 }
 
 TEST(substring_counter_test, complex_pattern_uses_kmp_fallbacks) {
-    read_only_stream<char> stream("abababacababaca", first_char_token);
+    read_only_stream<char> stream("abababacababaca", first_char_token, true);
     substring_counter counter("ababaca");
 
     stream.open();
